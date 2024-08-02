@@ -1,172 +1,169 @@
 'use client'
-import Image from "next/image";
-import {useState, useEffect} from 'react'
+import { useState, useEffect } from 'react'
 import { firestore } from "@/firebase";
-import { Box, Button, Modal, Stack, TextField, Typography } from "@mui/material";
-import { collection, deleteDoc, getDocs, query, setDoc, getDoc, doc} from "firebase/firestore";
+import { Box, Button, TextField, Typography } from "@mui/material";
+import { collection, deleteDoc, getDocs, setDoc, doc, getDoc } from "firebase/firestore";
 
 export default function Home() {
-  const [inventory, setInventory] = useState([])
-  const [open, setOpen] = useState(false)
-  const [itemName, setItemName] = useState('')
-  const [searchQuery, setSearchQuery] = useState('');
+  const [expenses, setExpenses] = useState([]);
+  const [expenseName, setExpenseName] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState('');
 
-  const updateInventory = async () => {
-    const snapshot = query(collection(firestore, 'inventory'))
-    const docs = await getDocs(snapshot)
-    const inventoryList = []
+  // Update expenses from Firestore
+  const updateExpenses = async () => {
+    const snapshot = await getDocs(collection(firestore, 'expenses'));
+    const expensesList = [];
 
-    docs.forEach((doc) => {
-      inventoryList.push({
-        name: doc.id,
+    snapshot.forEach((doc) => {
+      expensesList.push({
+        id: doc.id,
         ...doc.data(),
-      })
-    })
+      });
+    });
 
-    setInventory(inventoryList)
+    setExpenses(expensesList);
+  };
 
-  }
+  // Add a new expense
+  const addExpense = async () => {
+    const trimmedName = expenseName.trim();
+    const amount = parseFloat(expenseAmount);
 
-  const addItem = async (item) => {
-    const docRef = doc(collection(firestore, 'inventory'), item)
-    const docSnap = await getDoc(docRef)
+    if (!trimmedName || isNaN(amount) || amount <= 0) {
+      console.error("Invalid expense name or amount.");
+      return;
+    }
+
+    const docRef = doc(collection(firestore, 'expenses'), trimmedName);
+    const docSnap = await getDoc(docRef);
+
     if (docSnap.exists()) {
-      const { quantity } = docSnap.data()
-      await setDoc(docRef, { quantity: quantity + 1 })
+      const data = docSnap.data();
+      const newAmount = (data.amount || 0) + amount;
+      await setDoc(docRef, { name: trimmedName, amount: newAmount });
     } else {
-      await setDoc(docRef, { quantity: 1 })
+      await setDoc(docRef, { name: trimmedName, amount });
     }
-    await updateInventory()
-  }
-  
-  const removeItem = async (item) => {
-    const docRef = doc(collection(firestore, 'inventory'), item)
-    const docSnap = await getDoc(docRef)
-    if (docSnap.exists()) {
-      const { quantity } = docSnap.data()
-      if (quantity === 1) {
-        await deleteDoc(docRef)
-      } else {
-        await setDoc(docRef, { quantity: quantity - 1 })
-      }
-    }
-    await updateInventory()
-  }
-  
-  useEffect(()=>{
-    updateInventory()
-  }, [])
 
-  const handleOpen = () => setOpen(true)
-  const handleClose = () => setOpen(false)
+    setExpenseName('');
+    setExpenseAmount('');
+    await updateExpenses();
+  };
 
-  const filteredInventory = inventory.filter(item =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Remove an expense
+  const removeExpense = async (id) => {
+    await deleteDoc(doc(firestore, 'expenses', id));
+    await updateExpenses();
+  };
+
+  useEffect(() => {
+    updateExpenses();
+  }, []);
+
+  // Calculate the total amount spent
+  const totalAmount = expenses.reduce((acc, expense) => acc + (expense.amount || 0), 0);
 
   return (
-    <Box 
-      width="100vw" 
-      height="100vh" 
-      display="flex" 
+    <Box
+      width="100vw"
+      height="100vh"
+      display="flex"
       flexDirection="column"
-      justifyContent="center"
       alignItems="center"
-      gap={2}
+      justifyContent="center"
+      bgcolor="black"
+      color="white"
+      padding={2}
     >
-      <Modal open={open} onClose={handleClose}>
-        <Box 
-          position="absolute"
-          top="50%"
-          left="50%"
-          width={400}
-          bgcolor="white"
-          border="2px solid #000"
-          boxShadow={24}
-          p={4}
-          diplay="flex"
-          flexDirection="column"
-          gap={3}
-          sx= {{
-            transform: 'translate(-50%, -50%)'
+      <Typography variant="h2" marginBottom={2}>
+        Expense Tracker
+      </Typography>
+      <Box display="flex" alignItems="center" gap={1} marginBottom={2}>
+        <TextField
+          label="Expense Name"
+          variant="outlined"
+          value={expenseName}
+          onChange={(e) => setExpenseName(e.target.value)}
+          sx={{ 
+            input: { color: 'black' }, 
+            label: { color: 'black' },
+            bgcolor: 'white',
+            borderRadius: 1
           }}
+        />
+        <TextField
+          label="Amount"
+          variant="outlined"
+          type="number"
+          value={expenseAmount}
+          onChange={(e) => setExpenseAmount(e.target.value)}
+          sx={{ 
+            input: { color: 'black' }, 
+            label: { color: 'black' },
+            bgcolor: 'white',
+            borderRadius: 1
+          }}
+        />
+        <Button
+          variant="contained"
+          onClick={addExpense}
         >
-          <Typography variant="h6">Add Item</Typography>
-          <Stack width="100%" direction="row" spacing={2}>
-            <TextField
-              variant="outlined"
-              fullWidth value={itemName}
-              onChange={(e) => {
-                setItemName(e.target.value)
-              }}
-            />
-            <Button
-              variant="outlined"
-              onClick={() => {
-                addItem(itemName)
-                setItemName('')
-                handleClose()
-              }} 
-            >
-              Add
-            </Button>
-          </Stack>
-        </Box>
-      </Modal>
-      <Button 
-        variant="contained"
-        onClick={() => {
-          handleOpen()
-        }}
+          +
+        </Button>
+      </Box>
+      <Box 
+        display="flex" 
+        flexDirection="column" 
+        gap={2} 
+        marginTop={2} 
+        width="100%" 
+        maxWidth="600px"
+        maxHeight="400px" // Set a max height to make the box scrollable
+        overflow="auto"  // Enable scrolling when content overflows
       >
-        Add New Item
-      </Button>
-      <TextField
-        label="Search"
-        variant="outlined"
-        fullWidth
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        sx={{ mb: 2 }} // Adds margin-bottom
-      />
-      <Box border="1px solid #333">
-        <Box
-          width="800px"
-          height="100px"
-          bgcolor="#ADD8E6"
-          display="flex"
-          alighItems="center"
-          justifyContent="center"
-        >
-          <Typography variant="h2" color="#333">
-            Inventory Items
-          </Typography>
-        </Box>
-      <Stack width="800px" height="300px" spacing={2} overflow={'auto'}>
-        {filteredInventory.map(({name, quantity}) => (
+        {expenses.map(({ id, name, amount }) => (
           <Box
-            key={name}
+            key={id}
+            display="flex"
+            alignItems="center"
+            bgcolor="#333"
+            color="white"
+            padding={1}
+            borderRadius={1}
+            boxShadow={2}
             width="100%"
-            minHeight="150px"
-            display={'flex'}
-            justifyContent={'space-between'}
-            alignItems={'center'}
-            bgcolor={'#f0f0f0'}
-            paddingX={5}
+            justifyContent="space-between"
           >
-            <Typography variant={'h3'} color={'#333'} textAlign={'center'}>
-              {name.charAt(0).toUpperCase() + name.slice(1)}
+            <Typography variant="h6">
+              {name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Unnamed Expense'}
             </Typography>
-            <Typography variant={'h3'} color={'#333'} textAlign={'center'}>
-              Quantity: {quantity}
+            <Typography variant="h6">
+              ${amount.toFixed(2)}
             </Typography>
-            <Button variant="contained" onClick={() => removeItem(name)}>
+            <Button
+              variant="contained"
+              color="error"
+              onClick={() => removeExpense(id)}
+            >
               Remove
             </Button>
           </Box>
         ))}
-      </Stack>
+      </Box>
+      <Box 
+        position="absolute" 
+        bottom={0} 
+        width="100%" 
+        bgcolor="#333" 
+        padding={2} 
+        display="flex" 
+        justifyContent="center"
+        alignItems="center"
+      >
+        <Typography variant="h5">
+          Total Amount Spent: ${totalAmount.toFixed(2)}
+        </Typography>
       </Box>
     </Box>
-  )
+  );
 }
