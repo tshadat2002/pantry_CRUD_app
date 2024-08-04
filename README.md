@@ -35,3 +35,7 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
 # pantry_CRUD_app
+
+Used Material UI
+
+Deployed on Vercel: expense-tracker-nextjs-materialui.vercel.app
